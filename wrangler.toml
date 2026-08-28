@@ -1,0 +1,9 @@
+# Cloudflare Pages 配置（用于 `wrangler pages deploy` 直接上传）
+# 若使用 Cloudflare 控制台的 Git 集成，则无需本文件：
+#   构建命令 npm run build，输出目录 dist（根目录设为 /frontend）
+
+name = "markdownak"
+compatibility_date = "2026-01-01"
+
+# 前端构建产物目录（相对 wrangler.toml 所在目录）
+pages_build_output_dir = "frontend/dist"

@@ -1,0 +1,23 @@
+{
+  "name": "markdownak",
+  "version": "1.0.0",
+  "description": "A beautiful, minimal online Markdown editor with live preview and export tools.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "icons": "node scripts/gen-icons.mjs",
+    "deploy:pages": "npm run build && cd .. && wrangler pages deploy"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.4",
+    "vite": "^5.4.0",
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "dompurify": "^3.1.0",
+    "marked": "^12.0.0",
+    "mathjax": "^3.2.2"
+  }
+}
