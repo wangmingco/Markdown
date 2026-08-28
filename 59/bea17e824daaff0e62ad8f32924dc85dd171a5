@@ -1,0 +1,19 @@
+.gitignore
+  s_3049ab13f42d12::t_4cac7df90a7b0a 8-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.3",
+  "base_commit_sha": "59bea17e824daaff0e62ad8f32924dc85dd171a5",
+  "prompts": {},
+  "sessions": {
+    "s_3049ab13f42d12": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8b0e7abffe7FsoyErRAto1PI",
+        "model": "unknown"
+      },
+      "human_author": "wangming <wangming.co@hotmail.com>"
+    }
+  }
+}
