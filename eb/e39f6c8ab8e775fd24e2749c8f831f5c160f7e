@@ -1,0 +1,46 @@
+frontend/index.html
+  s_3049ab13f42d12::t_4970281400fdc9 63,72-75,77-78,80-87,89-98
+  s_3049ab13f42d12::t_cac65ebfce4882 52
+  s_3049ab13f42d12::t_d96fb5446cb355 64-70
+AGENTS.md
+  s_3049ab13f42d12::t_82a95b51ee10d7 1-37
+app.go
+  s_3049ab13f42d12::t_f6228a0e3f6617 6,8,15-17,29-60
+  s_3049ab13f42d12::t_ea985ae04bd2eb 7
+  s_3049ab13f42d12::t_67e2a3907b62d1 115-187
+dev.bat
+  s_3049ab13f42d12::t_ece3c5dd835345 1-5,7-10
+frontend/src/style.css
+  s_3049ab13f42d12::t_dd1fe82e1d2bfd 322-389
+  s_3049ab13f42d12::t_e6603e5a8a2436 152-153
+  s_3049ab13f42d12::t_714493f0cde8a5 42-43,47-50
+  s_3049ab13f42d12::t_6afcb5bdf658fc 392-393,395-397,401,410-411
+  s_3049ab13f42d12::t_4ecf407afe80c2 417-418
+README.md
+  s_3049ab13f42d12::t_bc318ee6638e99 1-111
+frontend/src/main.js
+  s_3049ab13f42d12::t_d50846859c8d04 474-475
+  s_3049ab13f42d12::t_d85fda39d96b4c 82-98
+  s_3049ab13f42d12::t_72ddcc5df7a85d 498-582
+  s_3049ab13f42d12::t_11709440f4aaf1 497,583-606
+  s_3049ab13f42d12::t_f77b6d4d13f6e7 270,273,276,279,283
+  s_3049ab13f42d12::t_547dc910ea6cb6 8
+build.bat
+  s_3049ab13f42d12::t_aa9d58de3a2108 1-5,7-9,11-16,18-22,24-27,29-34,36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.3",
+  "base_commit_sha": "ebe39f6c8ab8e775fd24e2749c8f831f5c160f7e",
+  "prompts": {},
+  "sessions": {
+    "s_3049ab13f42d12": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8b0e7abffe7FsoyErRAto1PI",
+        "model": "unknown"
+      },
+      "human_author": "wangming <wangming.co@hotmail.com>"
+    }
+  }
+}
