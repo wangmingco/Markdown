@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify';
 window.MathJax = {
   tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
   svg: { fontCache: 'global' },
-  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'], processEscapes: true },
 };
 
 async function loadMathJax() {
@@ -78,6 +78,23 @@ marked.setOptions({
   gfm: true,
   breaks: true,
 });
+
+// Preserve $$...$$ block math as a single token so `breaks: true` doesn't
+// split multi-line formulas or drop the $$ delimiters.
+const blockMathExtension = {
+  name: 'blockMath',
+  level: 'block',
+  start(src) { return src.match(/^\$\$/) ? 0 : -1; },
+  tokenizer(src) {
+    const m = /^\$\$([\s\S]+?)\$\$/.exec(src);
+    if (m) return { type: 'blockMath', raw: m[0], text: m[1] };
+    return undefined;
+  },
+  renderer(token) {
+    return `<div class="math-display">$$${token.text}$$</div>`;
+  },
+};
+marked.use({ extensions: [blockMathExtension] });
 
 function render() {
   const html = marked.parse(editor.value);
@@ -250,17 +267,20 @@ function heading(level) {
 
 function block(marker, insertAtLine = true, type = '') {
   const { start, end, value, selected } = getSelection();
-  let text;
+  let text, cursor;
   if (type === 'code') {
     text = `${marker}${selected || '\n'}\n${marker}`;
+    cursor = start.length + marker.length + selected.length;
   } else if (selected) {
     text = selected.split('\n').map(l => marker + l).join('\n');
+    cursor = start.length + text.length;
   } else {
     text = marker;
+    cursor = start.length + text.length;
   }
   const newText = value.slice(0, start.length) + text + value.slice(end.length);
   editor.value = newText;
-  setCursor(start.length + text.length);
+  setCursor(cursor);
   pushSnapshot(true);
   render();
 }
@@ -451,6 +471,8 @@ const isWails = () => typeof window.go !== 'undefined' && window.go.main && wind
 if (!isWails()) {
   document.getElementById('openBtn').style.display = 'none';
   document.getElementById('saveBtn').style.display = 'none';
+  document.getElementById('wsBtn').style.display = 'none';
+  document.getElementById('addFolderBtn').style.display = 'none';
 }
 
 document.getElementById('openBtn').addEventListener('click', async () => {
@@ -472,3 +494,113 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     toast('已保存：' + result.path.split(/[\\/]/).pop());
   }
 });
+
+// ---------- Workspace file tree (Wails only) ----------
+const wsPanel = document.getElementById('wsPanel');
+const wsBody = document.getElementById('wsBody');
+const wsRoots = [];      // array of { root, expanded:Set }
+const expandedDirs = new Set(); // set of folder paths that are expanded
+
+document.getElementById('wsBtn').addEventListener('click', () => {
+  wsPanel.classList.toggle('open');
+});
+
+document.getElementById('addFolderBtn').addEventListener('click', async () => {
+  if (!isWails()) { toast('工作区功能仅在桌面端可用'); return; }
+  const result = await window.go.main.App.OpenFolderDialog();
+  if (!result || !result.path) return;
+  const tree = await window.go.main.App.ListDirectory(result.path);
+  wsRoots.push(tree);
+  renderWorkspace();
+  toast('已添加文件夹：' + tree.name);
+});
+
+function renderWorkspace() {
+  wsBody.innerHTML = '';
+  if (!wsRoots.length) {
+    wsBody.innerHTML = '<div class="empty">工作区为空<br>点击右上角 ＋ 添加文件夹</div>';
+    return;
+  }
+  wsRoots.forEach(tree => wsBody.appendChild(renderTreeItem(tree, 0)));
+}
+
+function renderTreeItem(node, depth) {
+  const isDir = node.isDir;
+  const row = document.createElement('div');
+  row.className = 'tree-item ' + (isDir ? 'tree-dir' : 'tree-file');
+
+  const item = document.createElement('div');
+  item.className = 'tree-row' + (isDir ? ' folder' : '');
+  item.style.paddingLeft = `${8 + depth * 16}px`;
+
+  if (isDir) {
+    const arrow = document.createElement('span');
+    arrow.className = 'tree-arrow';
+    arrow.textContent = expandedDirs.has(node.path) ? '▾' : '▸';
+    item.appendChild(arrow);
+
+    const label = document.createElement('span');
+    label.className = 'tree-label';
+    label.textContent = node.name;
+    item.appendChild(label);
+
+    item.addEventListener('click', () => {
+      if (expandedDirs.has(node.path)) expandedDirs.delete(node.path);
+      else expandedDirs.add(node.path);
+      renderWorkspace();
+    });
+
+    row.appendChild(item);
+
+    if (expandedDirs.has(node.path) && node.children) {
+      node.children.forEach(child => row.appendChild(renderTreeItem(child, depth + 1)));
+    }
+  } else {
+    const label = document.createElement('span');
+    label.className = 'tree-label';
+    label.textContent = node.name;
+    item.appendChild(label);
+
+    item.addEventListener('click', async () => {
+      if (!isWails()) return;
+      const ext = node.path.split('.').pop().toLowerCase();
+      if (ext !== 'md' && ext !== 'markdown') { toast('仅支持打开 Markdown 文件'); return; }
+      const content = await window.go.main.App.OpenFile(node.path);
+      editor.value = content;
+      pushSnapshot(true);
+      render();
+      wsBody.querySelectorAll('.tree-row.active').forEach(r => r.classList.remove('active'));
+      item.classList.add('active');
+      toast('已打开：' + node.name);
+    });
+
+    row.appendChild(item);
+  }
+
+  return row;
+}
+
+// ---------- Open by double-click (command line arg) ----------
+// When the user opens a .md file directly, load it, switch to preview mode
+// and show the table of contents.
+async function initFromFileArg() {
+  if (!isWails()) return;
+  let file;
+  try {
+    file = await window.go.main.App.GetInitialFile();
+  } catch {
+    return;
+  }
+  if (!file || !file.path) return;
+  editor.value = file.content;
+  pushSnapshot(true);
+  render();
+  document.body.className = 'mode-preview';
+  document.querySelectorAll('.pv').forEach(b => b.classList.remove('active'));
+  const previewBtn = document.querySelector('.pv[data-mode="preview"]');
+  if (previewBtn) previewBtn.classList.add('active');
+  tocPanel.classList.add('open');
+  toast('已打开：' + file.path.split(/[\\/]/).pop());
+}
+
+initFromFileArg();

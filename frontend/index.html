@@ -49,6 +49,7 @@
       </span>
       <span class="divider"></span>
       <button class="action ghost" id="templateBtn" title="示例模板">模板</button>
+      <button class="action ghost" id="wsBtn" title="工作区文件列表">文件</button>
       <button class="action ghost" id="tocBtn" title="目录">目录</button>
       <button class="action ghost" id="copyBtn" title="复制 Markdown">复制</button>
       <button class="action ghost" id="htmlBtn" title="复制 HTML">HTML</button>
@@ -59,32 +60,42 @@
     </div>
   </header>
 
-  <div class="toc-panel" id="tocPanel">
-    <div class="toc-head">
-      <span>目录</span>
-      <button id="tocClose" class="tool">✕</button>
-    </div>
-    <div class="toc-body" id="tocBody"></div>
+  <div class="layout">
+    <aside class="ws-panel" id="wsPanel">
+      <div class="ws-head">
+        <span>工作区</span>
+        <button id="addFolderBtn" class="tool" title="添加文件夹">＋</button>
+      </div>
+      <div class="ws-body" id="wsBody"></div>
+    </aside>
+
+    <aside class="toc-panel" id="tocPanel">
+      <div class="toc-head">
+        <span>目录</span>
+        <button id="tocClose" class="tool">✕</button>
+      </div>
+      <div class="toc-body" id="tocBody"></div>
+    </aside>
+
+    <main class="workspace">
+      <section class="pane pane-edit">
+        <div class="pane-label">
+          <span>MARKDOWN</span>
+          <span class="counter" id="wordCount">0 字</span>
+        </div>
+        <textarea id="editor" spellcheck="false" placeholder="在这里开始书写……"></textarea>
+      </section>
+
+      <div class="resizer" id="resizer"></div>
+
+      <section class="pane pane-preview">
+        <div class="pane-label">
+          <span>PREVIEW</span>
+        </div>
+        <div class="preview" id="preview"></div>
+      </section>
+    </main>
   </div>
-
-  <main class="workspace">
-    <section class="pane pane-edit">
-      <div class="pane-label">
-        <span>MARKDOWN</span>
-        <span class="counter" id="wordCount">0 字</span>
-      </div>
-      <textarea id="editor" spellcheck="false" placeholder="在这里开始书写……"></textarea>
-    </section>
-
-    <div class="resizer" id="resizer"></div>
-
-    <section class="pane pane-preview">
-      <div class="pane-label">
-        <span>PREVIEW</span>
-      </div>
-      <div class="preview" id="preview"></div>
-    </section>
-  </main>
 
   <script type="module" src="/src/main.js"></script>
 </body>
