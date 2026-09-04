@@ -1,5 +1,6 @@
-import { marked } from 'marked';
+import marked from './marked-config.js';
 import DOMPurify from 'dompurify';
+import { openExport } from './export.js';
 
 // MathJax config must be set before the library loads
 window.MathJax = {
@@ -257,27 +258,7 @@ function redo() {
 }
 
 // ---------- Marked config ----------
-marked.setOptions({
-  gfm: true,
-  breaks: true,
-});
-
-// Preserve $$...$$ block math as a single token so `breaks: true` doesn't
-// split multi-line formulas or drop the $$ delimiters.
-const blockMathExtension = {
-  name: 'blockMath',
-  level: 'block',
-  start(src) { return src.match(/^\$\$/) ? 0 : -1; },
-  tokenizer(src) {
-    const m = /^\$\$([\s\S]+?)\$\$/.exec(src);
-    if (m) return { type: 'blockMath', raw: m[0], text: m[1] };
-    return undefined;
-  },
-  renderer(token) {
-    return `<div class="math-display">$$${token.text}$$</div>`;
-  },
-};
-marked.use({ extensions: [blockMathExtension] });
+// Configured in marked-config.js (shared with export.js).
 
 function render() {
   const html = marked.parse(editor.value);
@@ -572,6 +553,11 @@ document.getElementById('htmlBtn').addEventListener('click', () => {
 
 // ---------- Print / PDF ----------
 document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+// ---------- Export to image (Carbon style) ----------
+document.getElementById('exportBtn').addEventListener('click', () => {
+  openExport(currentTab()?.title || 'markdown');
+});
 
 // ---------- Theme ----------
 const themeBtn = document.getElementById('themeBtn');

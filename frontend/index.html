@@ -58,6 +58,7 @@
       <button class="action ghost" id="copyBtn" title="复制 Markdown">复制</button>
       <button class="action ghost" id="htmlBtn" title="复制 HTML">HTML</button>
       <button class="action ghost" id="printBtn" title="导出 PDF / 打印">导出</button>
+      <button class="action ghost" id="exportBtn" title="代码 / 文档转图片">转图片</button>
       <button class="action ghost" id="newBtn" title="新建文档">新建</button>
       <button class="action ghost" id="openBtn" title="打开文件">打开</button>
       <button class="action ghost" id="saveBtn" title="保存文件">保存</button>
@@ -111,6 +112,48 @@
         <input id="modalInput" type="text" spellcheck="false" />
       </div>
       <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
+
+  <div class="export-mask" id="exportMask" hidden>
+    <div class="export-panel">
+      <div class="export-head">
+        <span class="export-title">转图片 · Carbon 风格</span>
+        <button class="export-close" id="exportClose" title="关闭">✕</button>
+      </div>
+      <div class="export-body">
+        <div class="export-controls">
+          <div class="export-group">
+            <label>内容</label>
+            <select id="exportSource">
+              <option value="code">代码块</option>
+              <option value="selection">选中内容</option>
+              <option value="markdown">Markdown 全文</option>
+            </select>
+            <div id="exportBlockWrap" class="export-sub">
+              <select id="exportBlock"></select>
+            </div>
+          </div>
+          <div class="export-group">
+            <label>文件标题</label>
+            <input type="text" id="exportTitleInput" placeholder="未命名" />
+          </div>
+          <div class="export-group">
+            <label>主题</label>
+            <div class="theme-grid" id="themeGrid"></div>
+          </div>
+          <div class="export-group">
+            <label>选项</label>
+            <label class="export-check" id="exportLineNumWrap"><input type="checkbox" id="exportLineNum" checked /> 显示行号</label>
+            <label class="export-check"><input type="checkbox" id="exportChrome" checked /> 窗口装饰</label>
+            <p class="export-note" id="exportMdNote">Markdown 模式会按文档排版渲染，行号不可用。</p>
+          </div>
+          <button class="export-download" id="exportDownload">下载 PNG</button>
+        </div>
+        <div class="export-stage" id="exportStage">
+          <div class="export-scaler" id="exportScaler"></div>
+        </div>
+      </div>
     </div>
   </div>
 </body>
