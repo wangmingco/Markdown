@@ -7,6 +7,8 @@
   --ink-faint: #a6a29a;
   --accent: #c25e3a;
   --accent-soft: #f3e0d6;
+  --danger: #c0392b;
+  --danger-bg: #fbeceb;
   --line: #e7e3da;
   --code-bg: #f1efe9;
   --preview-w: 50%;
@@ -25,6 +27,8 @@
   --ink-faint: #6f6a61;
   --accent: #e0865f;
   --accent-soft: #3a2a22;
+  --danger: #e06c5f;
+  --danger-bg: #3a2420;
   --line: #2c2a26;
   --code-bg: #242220;
   --shadow: 0 10px 40px -16px rgba(0, 0, 0, 0.6);
@@ -468,6 +472,152 @@ body {
   transition: all 0.12s;
 }
 .template-menu button:hover { background: var(--bg-soft); color: var(--ink); }
+
+/* ---------- Tab bar ---------- */
+.tabbar {
+  height: 40px;
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.tabbar::-webkit-scrollbar { display: none; }
+.tabs { display: flex; align-items: stretch; }
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  max-width: 220px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: transparent;
+  border-right: 1px solid var(--line);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+.tab:hover { background: var(--bg-elev); color: var(--ink); }
+.tab.active {
+  background: var(--bg-elev);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.tab-title { overflow: hidden; text-overflow: ellipsis; }
+.tab-close {
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+}
+.tab-close:hover { background: var(--accent); color: var(--bg-elev); }
+
+/* ---------- Modal ---------- */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+}
+.modal-mask[hidden] { display: none; }
+.modal {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+  min-width: 300px;
+  max-width: 440px;
+  animation: menuIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.modal-title {
+  font-family: var(--serif);
+  font-size: 15px;
+  color: var(--ink);
+  line-height: 1.6;
+  margin-bottom: 20px;
+  word-break: break-all;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-btn {
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.modal-btn:hover { border-color: var(--ink); color: var(--ink); }
+.modal-btn.primary { background: var(--ink); color: var(--bg-elev); border-color: var(--ink); }
+.modal-btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+.modal-btn.danger { background: var(--danger); color: var(--bg-elev); border-color: var(--danger); }
+.modal-btn.danger:hover { background: var(--danger); opacity: 0.85; }
+.modal-input { margin: -6px 0 18px; }
+.modal-input input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.modal-input input:focus { border-color: var(--accent); }
+
+/* ---------- Context menu ---------- */
+.ctx-menu {
+  position: fixed;
+  z-index: 70;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 5px;
+  min-width: 150px;
+  animation: menuIn 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ctx-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.ctx-menu button:hover { background: var(--bg-soft); color: var(--ink); }
+.ctx-menu button.danger { color: var(--danger); }
+.ctx-menu button.danger:hover { background: var(--danger-bg); color: var(--danger); }
+.ctx-sep { height: 1px; background: var(--line); margin: 5px 8px; }
 
 /* ---------- Toast ---------- */
 .toast {

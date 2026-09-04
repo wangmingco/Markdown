@@ -17,13 +17,186 @@ const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
 const wordCount = document.getElementById('wordCount');
 
+// ---------- Tabs ----------
+let tabs = [];
+let activeTabId = null;
+let untitledCounter = 0;
+let tabSeq = 0;
+let applyingHistory = false;
+
+function currentTab() {
+  return tabs.find(t => t.id === activeTabId);
+}
+
+function makeTab(title, content, path = null) {
+  return {
+    id: 'tab-' + (++tabSeq),
+    title,
+    path,
+    content,
+    cursor: 0,
+    dirty: false,
+    history: [],
+    historyIndex: -1,
+    canCoalesce: false,
+    lastChangeTime: 0,
+  };
+}
+
+function saveActiveState() {
+  const tab = currentTab();
+  if (!tab) return;
+  tab.content = editor.value;
+  tab.cursor = editor.selectionStart;
+}
+
+function loadEditorFromTab(tab) {
+  editor.value = tab.content;
+  applyingHistory = true;
+  const pos = Math.min(tab.cursor || 0, tab.content.length);
+  editor.setSelectionRange(pos, pos);
+  applyingHistory = false;
+  render();
+  renderTabBar();
+}
+
+function addTab(tab) {
+  saveActiveState();
+  tabs.push(tab);
+  activeTabId = tab.id;
+  loadEditorFromTab(tab);
+  tab.history = [getState()];
+  tab.historyIndex = 0;
+}
+
+function switchTo(id) {
+  if (id === activeTabId) return;
+  saveActiveState();
+  activeTabId = id;
+  loadEditorFromTab(currentTab());
+}
+
+function openFileInTab(path, content) {
+  const name = path.split(/[\\/]/).pop();
+  const tab = currentTab();
+  const reusable = tab && !tab.dirty && !tab.path;
+  if (reusable) {
+    tab.path = path;
+    tab.title = name;
+    tab.content = content;
+    tab.cursor = 0;
+    tab.dirty = false;
+    tab.history = [{ value: content, start: 0, end: 0 }];
+    tab.historyIndex = 0;
+    render();
+    renderTabBar();
+  } else {
+    addTab(makeTab(name, content, path));
+  }
+}
+
+function closeTab(id) {
+  const tab = tabs.find(t => t.id === id);
+  if (!tab) return;
+  if (tab.dirty) {
+    showSavePrompt(tab);
+    return;
+  }
+  removeTab(id);
+}
+
+function removeTab(id) {
+  const idx = tabs.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  tabs.splice(idx, 1);
+  if (activeTabId === id) {
+    const next = tabs[Math.min(idx, tabs.length - 1)];
+    if (next) {
+      activeTabId = next.id;
+      loadEditorFromTab(next);
+    } else {
+      activeTabId = null;
+      addTab(makeTab('未命名' + (++untitledCounter), ''));
+    }
+  } else {
+    renderTabBar();
+  }
+}
+
+function renderTabBar() {
+  const tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = '';
+  tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (tab.id === activeTabId ? ' active' : '');
+    el.dataset.id = tab.id;
+    el.title = tab.title;
+
+    const title = document.createElement('span');
+    title.className = 'tab-title';
+    title.textContent = (tab.dirty ? '● ' : '') + tab.title;
+    el.appendChild(title);
+
+    const close = document.createElement('button');
+    close.className = 'tab-close';
+    close.textContent = '✕';
+    close.title = '关闭';
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeTab(tab.id);
+    });
+    el.appendChild(close);
+
+    el.addEventListener('click', () => switchTo(tab.id));
+    el.addEventListener('auxclick', (e) => {
+      if (e.button === 1) closeTab(tab.id);
+    });
+
+    tabsEl.appendChild(el);
+  });
+}
+
+async function saveTab(tab) {
+  if (!isWails()) { toast('保存功能仅在桌面端可用'); return false; }
+  let path = tab.path;
+  if (!path) {
+    const result = await window.go.main.App.SaveFileDialog(tab.content);
+    if (!result || !result.path) return false;
+    path = result.path;
+    tab.path = path;
+    tab.title = path.split(/[\\/]/).pop();
+  } else {
+    await window.go.main.App.SaveFile(path, tab.content);
+  }
+  tab.dirty = false;
+  toast('已保存：' + tab.title);
+  renderTabBar();
+  return true;
+}
+
+function showSavePrompt(tab) {
+  showModal(`「${tab.title}」的内容已修改，是否保存？`, [
+    {
+      label: '保存',
+      primary: true,
+      action: async () => {
+        const ok = await saveTab(tab);
+        if (ok) removeTab(tab.id);
+      },
+    },
+    { label: '不保存', action: () => removeTab(tab.id) },
+    { label: '取消', action: () => {} },
+  ]);
+}
+
+function newDocument() {
+  const title = '未命名' + (++untitledCounter);
+  addTab(makeTab(title, ''));
+  toast('已新建：' + title);
+}
+
 // ---------- Undo / Redo history ----------
 const HISTORY_LIMIT = 200;
-const history = [];      // snapshots: { value, start, end }
-let historyIndex = 0;    // current snapshot
-let lastChangeTime = 0;
-let applyingHistory = false;
-let canCoalesce = false; // whether the current entry may absorb rapid typing
 
 function getState() {
   return {
@@ -35,42 +208,52 @@ function getState() {
 
 function pushSnapshot(force = false) {
   if (applyingHistory) return;
+  const tab = currentTab();
+  if (!tab) return;
   const state = getState();
-  const last = history[historyIndex];
+  const last = tab.history[tab.historyIndex];
   if (last && last.value === state.value) return;
+  tab.dirty = true;
+  renderTabBar();
   const now = Date.now();
-  const hasRedoBranch = historyIndex < history.length - 1;
-  if (!force && !hasRedoBranch && canCoalesce && now - lastChangeTime < 600) {
-    history[historyIndex] = state;
+  const hasRedoBranch = tab.historyIndex < tab.history.length - 1;
+  if (!force && !hasRedoBranch && tab.canCoalesce && now - tab.lastChangeTime < 600) {
+    tab.history[tab.historyIndex] = state;
   } else {
-    history.length = historyIndex + 1;
-    history.push(state);
-    if (history.length > HISTORY_LIMIT) history.shift();
-    historyIndex = history.length - 1;
-    canCoalesce = !force;
+    tab.history.length = tab.historyIndex + 1;
+    tab.history.push(state);
+    if (tab.history.length > HISTORY_LIMIT) tab.history.shift();
+    tab.historyIndex = tab.history.length - 1;
+    tab.canCoalesce = !force;
   }
-  lastChangeTime = now;
+  tab.lastChangeTime = now;
 }
 
 function applySnapshot(index) {
   applyingHistory = true;
-  const s = history[index];
+  const tab = currentTab();
+  if (!tab) { applyingHistory = false; return; }
+  const s = tab.history[index];
   editor.value = s.value;
   editor.setSelectionRange(Math.min(s.start, s.value.length), Math.min(s.end, s.value.length));
-  historyIndex = index;
-  canCoalesce = false;
+  tab.historyIndex = index;
+  tab.canCoalesce = false;
+  tab.dirty = true;
   render();
+  renderTabBar();
   applyingHistory = false;
 }
 
 function undo() {
-  if (historyIndex <= 0) return;
-  applySnapshot(historyIndex - 1);
+  const tab = currentTab();
+  if (!tab || tab.historyIndex <= 0) return;
+  applySnapshot(tab.historyIndex - 1);
 }
 
 function redo() {
-  if (historyIndex >= history.length - 1) return;
-  applySnapshot(historyIndex + 1);
+  const tab = currentTab();
+  if (!tab || tab.historyIndex >= tab.history.length - 1) return;
+  applySnapshot(tab.historyIndex + 1);
 }
 
 // ---------- Marked config ----------
@@ -441,6 +624,77 @@ document.addEventListener('click', (e) => {
   if (menu && !menu.contains(e.target) && e.target !== templateBtn) menu.remove();
 });
 
+// ---------- Modal ----------
+function closeModal() {
+  const mask = document.getElementById('modalMask');
+  mask.hidden = true;
+  document.getElementById('modalInputWrap').hidden = true;
+}
+
+function showModal(title, buttons) {
+  closeModal();
+  const mask = document.getElementById('modalMask');
+  document.getElementById('modalTitle').textContent = title;
+  const actions = document.getElementById('modalActions');
+  actions.innerHTML = '';
+  buttons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.textContent = b.label;
+    btn.className = 'modal-btn' + (b.primary ? ' primary' : '') + (b.danger ? ' danger' : '');
+    btn.addEventListener('click', async () => {
+      closeModal();
+      if (b.action) await b.action();
+    });
+    actions.appendChild(btn);
+  });
+  mask.hidden = false;
+}
+
+function showPrompt(title, opts = {}, onConfirm) {
+  closeModal();
+  const mask = document.getElementById('modalMask');
+  const inputWrap = document.getElementById('modalInputWrap');
+  const input = document.getElementById('modalInput');
+  document.getElementById('modalTitle').textContent = title;
+  input.value = opts.defaultValue || '';
+  input.placeholder = opts.placeholder || '';
+  inputWrap.hidden = false;
+  const actions = document.getElementById('modalActions');
+  actions.innerHTML = '';
+  const cancel = document.createElement('button');
+  cancel.textContent = '取消';
+  cancel.className = 'modal-btn';
+  cancel.addEventListener('click', closeModal);
+  const ok = document.createElement('button');
+  ok.textContent = opts.confirmLabel || '确定';
+  ok.className = 'modal-btn primary';
+  ok.addEventListener('click', () => {
+    const value = input.value.trim();
+    closeModal();
+    if (value) onConfirm(value);
+  });
+  actions.appendChild(cancel);
+  actions.appendChild(ok);
+  mask.hidden = false;
+  input.focus();
+  input.select();
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); ok.click(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
+  };
+}
+
+document.getElementById('modalMask').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modalMask')) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const mask = document.getElementById('modalMask');
+    if (!mask.hidden) closeModal();
+    hideCtxMenu();
+  }
+});
+
 // ---------- Toast ----------
 let toastTimer;
 function toast(msg) {
@@ -457,11 +711,7 @@ function toast(msg) {
 }
 
 // ---------- Init ----------
-editor.value = DEFAULT;
-render();
-observeHeadings();
-history.push(getState());
-historyIndex = 0;
+addTab(makeTab('未命名' + (++untitledCounter), DEFAULT));
 loadMathJax().then(() => render());
 
 // ---------- Native file open / save (Wails) ----------
@@ -475,24 +725,21 @@ if (!isWails()) {
   document.getElementById('addFolderBtn').style.display = 'none';
 }
 
+document.getElementById('newBtn').addEventListener('click', () => newDocument());
+
 document.getElementById('openBtn').addEventListener('click', async () => {
   if (!isWails()) { toast('打开功能仅在桌面端可用'); return; }
   const result = await window.go.main.App.OpenFileDialog();
   if (result && result.path) {
     const content = await window.go.main.App.OpenFile(result.path);
-    editor.value = content;
-    pushSnapshot(true);
-    render();
+    openFileInTab(result.path, content);
     toast('已打开：' + result.path.split(/[\\/]/).pop());
   }
 });
 
 document.getElementById('saveBtn').addEventListener('click', async () => {
   if (!isWails()) { toast('保存功能仅在桌面端可用'); return; }
-  const result = await window.go.main.App.SaveFileDialog(editor.value);
-  if (result && result.path) {
-    toast('已保存：' + result.path.split(/[\\/]/).pop());
-  }
+  await saveTab(currentTab());
 });
 
 // ---------- Workspace file tree (Wails only) ----------
@@ -532,6 +779,7 @@ function renderTreeItem(node, depth) {
   const item = document.createElement('div');
   item.className = 'tree-row' + (isDir ? ' folder' : '');
   item.style.paddingLeft = `${8 + depth * 16}px`;
+  item.dataset.path = node.path;
 
   if (isDir) {
     const arrow = document.createElement('span');
@@ -561,24 +809,184 @@ function renderTreeItem(node, depth) {
     label.textContent = node.name;
     item.appendChild(label);
 
-    item.addEventListener('click', async () => {
-      if (!isWails()) return;
-      const ext = node.path.split('.').pop().toLowerCase();
-      if (ext !== 'md' && ext !== 'markdown') { toast('仅支持打开 Markdown 文件'); return; }
-      const content = await window.go.main.App.OpenFile(node.path);
-      editor.value = content;
-      pushSnapshot(true);
-      render();
-      wsBody.querySelectorAll('.tree-row.active').forEach(r => r.classList.remove('active'));
-      item.classList.add('active');
-      toast('已打开：' + node.name);
-    });
+    item.addEventListener('click', () => openWorkspaceNode(node));
 
     row.appendChild(item);
   }
 
+  item.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showNodeMenu(node, e.clientX, e.clientY);
+  });
+
   return row;
 }
+
+// ---------- Workspace context menu ----------
+let ctxMenu = null;
+
+function hideCtxMenu() {
+  if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
+}
+
+function showCtxMenu(x, y, items) {
+  hideCtxMenu();
+  ctxMenu = document.createElement('div');
+  ctxMenu.className = 'ctx-menu';
+  items.forEach(item => {
+    if (item === '-') {
+      const sep = document.createElement('div');
+      sep.className = 'ctx-sep';
+      ctxMenu.appendChild(sep);
+      return;
+    }
+    const btn = document.createElement('button');
+    btn.textContent = item.label;
+    if (item.danger) btn.className = 'danger';
+    btn.addEventListener('click', () => {
+      hideCtxMenu();
+      item.action();
+    });
+    ctxMenu.appendChild(btn);
+  });
+  document.body.appendChild(ctxMenu);
+  const rect = ctxMenu.getBoundingClientRect();
+  ctxMenu.style.left = Math.min(x, window.innerWidth - rect.width - 8) + 'px';
+  ctxMenu.style.top = Math.min(y, window.innerHeight - rect.height - 8) + 'px';
+}
+
+document.addEventListener('click', hideCtxMenu);
+window.addEventListener('resize', hideCtxMenu);
+
+function showNodeMenu(node, x, y) {
+  const items = [];
+  if (node.isDir) {
+    items.push(
+      { label: '新建文件', action: () => createNewFile(node.path) },
+      { label: '新建文件夹', action: () => createNewFolder(node.path) },
+      '-',
+      { label: '复制路径', action: () => copyPath(node.path) },
+      '-',
+      { label: '删除', danger: true, action: () => deleteNode(node) },
+    );
+  } else {
+    items.push(
+      { label: '打开', action: () => openWorkspaceNode(node) },
+      '-',
+      { label: '复制', action: () => copyNode(node) },
+      { label: '复制路径', action: () => copyPath(node.path) },
+      '-',
+      { label: '删除', danger: true, action: () => deleteNode(node) },
+    );
+  }
+  showCtxMenu(x, y, items);
+}
+
+function openWorkspaceNode(node) {
+  if (!isWails()) return;
+  const ext = node.path.split('.').pop().toLowerCase();
+  if (ext !== 'md' && ext !== 'markdown') { toast('仅支持打开 Markdown 文件'); return; }
+  return window.go.main.App.OpenFile(node.path)
+    .then((content) => {
+      openFileInTab(node.path, content);
+      wsBody.querySelectorAll('.tree-row.active').forEach(r => r.classList.remove('active'));
+      const row = wsBody.querySelector(`.tree-row[data-path="${CSS.escape(node.path)}"]`);
+      if (row) row.classList.add('active');
+      toast('已打开：' + node.name);
+    })
+    .catch(() => toast('打开失败'));
+}
+
+async function refreshWorkspace() {
+  const fresh = [];
+  for (const root of wsRoots) {
+    try {
+      const tree = await window.go.main.App.ListDirectory(root.path);
+      if (tree) fresh.push(tree);
+    } catch { /* skip */ }
+  }
+  wsRoots.length = 0;
+  wsRoots.push(...fresh);
+  renderWorkspace();
+}
+
+async function createNewFile(dir) {
+  showPrompt('新建文件', { defaultValue: '未命名.md', placeholder: '文件名（无扩展名时自动补 .md）' }, async (name) => {
+    const finalName = name.includes('.') ? name : name + '.md';
+    try {
+      const path = await window.go.main.App.CreateFile(dir, finalName);
+      expandedDirs.add(dir);
+      await refreshWorkspace();
+      openFileInTab(path, '');
+      toast('已新建：' + path.split(/[\\/]/).pop());
+    } catch {
+      toast('创建失败');
+    }
+  });
+}
+
+async function createNewFolder(dir) {
+  showPrompt('新建文件夹', { defaultValue: '新建文件夹', placeholder: '文件夹名称' }, async (name) => {
+    try {
+      const path = await window.go.main.App.CreateFolder(dir, name);
+      expandedDirs.add(dir);
+      expandedDirs.add(path);
+      await refreshWorkspace();
+      toast('已新建文件夹：' + path.split(/[\\/]/).pop());
+    } catch {
+      toast('创建失败');
+    }
+  });
+}
+
+function copyPath(path) {
+  navigator.clipboard.writeText(path).then(() => toast('已复制路径'));
+}
+
+async function copyNode(node) {
+  try {
+    const dest = await window.go.main.App.CopyFile(node.path);
+    await refreshWorkspace();
+    toast('已复制：' + dest.split(/[\\/]/).pop());
+  } catch {
+    toast('复制失败');
+  }
+}
+
+function deleteNode(node) {
+  showModal(`确定要删除「${node.name}」吗？此操作不可恢复。`, [
+    {
+      label: '删除',
+      primary: true,
+      danger: true,
+      action: async () => {
+        try {
+          await window.go.main.App.DeletePath(node.path);
+          await refreshWorkspace();
+          toast('已删除：' + node.name);
+        } catch {
+          toast('删除失败');
+        }
+      },
+    },
+    { label: '取消', action: () => {} },
+  ]);
+}
+
+wsBody.addEventListener('contextmenu', (e) => {
+  if (e.target.closest('.tree-item')) return;
+  e.preventDefault();
+  if (!wsRoots.length) { toast('请先添加工作区文件夹'); return; }
+  if (wsRoots.length > 1) { toast('请在文件夹上右键新建'); return; }
+  const root = wsRoots[0];
+  showCtxMenu(e.clientX, e.clientY, [
+    { label: '新建文件', action: () => createNewFile(root.path) },
+    { label: '新建文件夹', action: () => createNewFolder(root.path) },
+  ]);
+});
+
+wsBody.addEventListener('scroll', hideCtxMenu);
 
 // ---------- Open by double-click (command line arg) ----------
 // When the user opens a .md file directly, load it, switch to preview mode
@@ -592,15 +1000,23 @@ async function initFromFileArg() {
     return;
   }
   if (!file || !file.path) return;
+  const tab = currentTab();
+  tab.path = file.path;
+  tab.title = file.path.split(/[\\/]/).pop();
+  tab.content = file.content;
+  tab.cursor = 0;
+  tab.dirty = false;
+  tab.history = [{ value: file.content, start: 0, end: 0 }];
+  tab.historyIndex = 0;
   editor.value = file.content;
-  pushSnapshot(true);
   render();
+  renderTabBar();
   document.body.className = 'mode-preview';
   document.querySelectorAll('.pv').forEach(b => b.classList.remove('active'));
   const previewBtn = document.querySelector('.pv[data-mode="preview"]');
   if (previewBtn) previewBtn.classList.add('active');
   tocPanel.classList.add('open');
-  toast('已打开：' + file.path.split(/[\\/]/).pop());
+  toast('已打开：' + tab.title);
 }
 
 initFromFileArg();

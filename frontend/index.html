@@ -15,6 +15,10 @@
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
+  <div class="tabbar" id="tabbar">
+    <div class="tabs" id="tabs"></div>
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark">AK</span>
@@ -54,6 +58,7 @@
       <button class="action ghost" id="copyBtn" title="复制 Markdown">复制</button>
       <button class="action ghost" id="htmlBtn" title="复制 HTML">HTML</button>
       <button class="action ghost" id="printBtn" title="导出 PDF / 打印">导出</button>
+      <button class="action ghost" id="newBtn" title="新建文档">新建</button>
       <button class="action ghost" id="openBtn" title="打开文件">打开</button>
       <button class="action ghost" id="saveBtn" title="保存文件">保存</button>
       <button class="action solid" id="themeBtn" title="切换主题">☾</button>
@@ -98,5 +103,15 @@
   </div>
 
   <script type="module" src="/src/main.js"></script>
+
+  <div class="modal-mask" id="modalMask" hidden>
+    <div class="modal">
+      <p class="modal-title" id="modalTitle"></p>
+      <div class="modal-input" id="modalInputWrap" hidden>
+        <input id="modalInput" type="text" spellcheck="false" />
+      </div>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
 </body>
 </html>

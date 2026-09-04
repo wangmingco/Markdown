@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -112,6 +113,74 @@ func (a *App) OpenFile(path string) (string, error) {
 // SaveFile writes content to a file
 func (a *App) SaveFile(path string, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// CreateFile creates a new empty file in the given directory. If the name is
+// already taken, a numeric suffix is appended so existing files are never
+// overwritten.
+func (a *App) CreateFile(dir string, name string) (string, error) {
+	ext := filepath.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	path := filepath.Join(dir, name)
+	for i := 1; ; i++ {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			break
+		}
+		suffix := fmt.Sprintf("(%d)%s", i, ext)
+		path = filepath.Join(dir, base+suffix)
+	}
+	if err := os.WriteFile(path, []byte{}, 0644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// CreateFolder creates a new folder in the given directory. If the name is
+// already taken, a numeric suffix is appended.
+func (a *App) CreateFolder(dir string, name string) (string, error) {
+	path := filepath.Join(dir, name)
+	for i := 1; ; i++ {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			break
+		}
+		path = filepath.Join(dir, fmt.Sprintf("%s(%d)", name, i))
+	}
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// DeletePath deletes a file or a folder (recursively).
+func (a *App) DeletePath(path string) error {
+	return os.RemoveAll(path)
+}
+
+// CopyFile duplicates a file in the same directory with a 副本 suffix.
+func (a *App) CopyFile(path string) (string, error) {
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(filepath.Base(path), ext)
+	dir := filepath.Dir(path)
+	dest := ""
+	for i := 1; ; i++ {
+		name := fmt.Sprintf("%s-副本%s", base, ext)
+		if i > 1 {
+			name = fmt.Sprintf("%s-副本(%d)%s", base, i, ext)
+		}
+		candidate := filepath.Join(dir, name)
+		if _, err := os.Stat(candidate); os.IsNotExist(err) {
+			dest = candidate
+			break
+		}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(dest, data, 0644); err != nil {
+		return "", err
+	}
+	return dest, nil
 }
 
 // FileEntry is a node in the recursive workspace file tree
