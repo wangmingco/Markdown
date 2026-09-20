@@ -115,6 +115,23 @@ func (a *App) SaveFile(path string, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
+// FileMeta is a lightweight snapshot of a file used to detect external changes.
+type FileMeta struct {
+	Exists  bool  `json:"exists"`
+	ModTime int64 `json:"modTime"`
+	Size    int64 `json:"size"`
+}
+
+// StatFile returns the modification time and size of a file so the frontend
+// can detect when the file changed on disk. Missing files return exists=false.
+func (a *App) StatFile(path string) FileMeta {
+	info, err := os.Stat(path)
+	if err != nil {
+		return FileMeta{}
+	}
+	return FileMeta{Exists: true, ModTime: info.ModTime().UnixMilli(), Size: info.Size()}
+}
+
 // CreateFile creates a new empty file in the given directory. If the name is
 // already taken, a numeric suffix is appended so existing files are never
 // overwritten.

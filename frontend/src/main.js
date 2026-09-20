@@ -41,6 +41,8 @@ function makeTab(title, content, path = null) {
     historyIndex: -1,
     canCoalesce: false,
     lastChangeTime: 0,
+    diskModTime: 0,
+    diskSize: 0,
   };
 }
 
@@ -94,6 +96,7 @@ function openFileInTab(path, content) {
   } else {
     addTab(makeTab(name, content, path));
   }
+  if (path) syncDiskState(currentTab());
 }
 
 function closeTab(id) {
@@ -170,6 +173,7 @@ async function saveTab(tab) {
     await window.go.main.App.SaveFile(path, tab.content);
   }
   tab.dirty = false;
+  await syncDiskState(tab);
   toast('已保存：' + tab.title);
   renderTabBar();
   return true;
@@ -194,6 +198,83 @@ function newDocument() {
   const title = '未命名' + (++untitledCounter);
   addTab(makeTab(title, ''));
   toast('已新建：' + title);
+}
+
+// ---------- External file change detection ----------
+const CHANGE_POLL_MS = 2000;
+const checkingTabs = new Set();
+let changePollTimer = null;
+
+async function statFile(path) {
+  if (!isWails() || !path) return null;
+  try {
+    return await window.go.main.App.StatFile(path);
+  } catch {
+    return null;
+  }
+}
+
+async function syncDiskState(tab) {
+  if (!tab || !tab.path) return;
+  const meta = await statFile(tab.path);
+  if (meta && meta.exists) {
+    tab.diskModTime = meta.modTime;
+    tab.diskSize = meta.size;
+  }
+}
+
+function applyExternalContent(tab, content) {
+  const pos = tab.id === activeTabId ? editor.selectionStart : (tab.cursor || 0);
+  tab.content = content;
+  tab.cursor = Math.min(pos, content.length);
+  tab.dirty = false;
+  tab.canCoalesce = false;
+  tab.history = [{ value: content, start: tab.cursor, end: tab.cursor }];
+  tab.historyIndex = 0;
+  if (tab.id === activeTabId) loadEditorFromTab(tab);
+  else renderTabBar();
+  syncDiskState(tab);
+}
+
+function promptExternalChange(tab) {
+  const note = tab.dirty ? '当前有未保存的修改，更新后将被覆盖。' : '';
+  showModal(`「${tab.title}」的文件内容已在外部更新，是否加载最新内容？${note ? ' ' + note : ''}`, [
+    {
+      label: '更新',
+      primary: true,
+      action: async () => {
+        try {
+          const content = await window.go.main.App.OpenFile(tab.path);
+          applyExternalContent(tab, content);
+          toast('已更新：' + tab.title);
+        } catch {
+          toast('更新失败');
+        }
+      },
+    },
+    { label: '忽略', action: () => {} },
+  ]);
+}
+
+async function checkTabForExternalChange(tab) {
+  if (!tab.path || checkingTabs.has(tab.id)) return;
+  checkingTabs.add(tab.id);
+  try {
+    const meta = await statFile(tab.path);
+    if (meta && meta.exists && tab.diskModTime &&
+        (meta.modTime !== tab.diskModTime || meta.size !== tab.diskSize)) {
+      tab.diskModTime = meta.modTime;
+      tab.diskSize = meta.size;
+      promptExternalChange(tab);
+    }
+  } finally {
+    checkingTabs.delete(tab.id);
+  }
+}
+
+function checkExternalChanges() {
+  if (!isWails()) return;
+  tabs.forEach(checkTabForExternalChange);
 }
 
 // ---------- Undo / Redo history ----------
@@ -1003,6 +1084,12 @@ async function initFromFileArg() {
   if (previewBtn) previewBtn.classList.add('active');
   tocPanel.classList.add('open');
   toast('已打开：' + tab.title);
+  syncDiskState(tab);
 }
 
 initFromFileArg();
+
+if (isWails()) {
+  changePollTimer = setInterval(checkExternalChanges, CHANGE_POLL_MS);
+  window.addEventListener('focus', checkExternalChanges);
+}
