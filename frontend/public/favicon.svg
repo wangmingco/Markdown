@@ -1,23 +1,54 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2e2a24"/>
-      <stop offset="1" stop-color="#1c1b18"/>
+      <stop offset="0" stop-color="#23231f"/>
+      <stop offset="0.55" stop-color="#151513"/>
+      <stop offset="1" stop-color="#0b0b09"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.35" r="0.75">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ecc279"/>
+      <stop offset="1" stop-color="#d4a853"/>
+    </linearGradient>
+
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8fe0d6"/>
+      <stop offset="1" stop-color="#4aafa5"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#d4a853" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#d4a853" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
-  <rect x="20" y="20" width="472" height="472" rx="112" fill="url(#bg)"/>
-  <rect x="20" y="20" width="472" height="472" rx="112" fill="url(#glow)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#glow)"/>
 
-  <text x="256" y="280"
-        font-family="Consolas, 'Courier New', monospace"
-        font-size="260" font-weight="900"
-        fill="#faf9f6" text-anchor="middle" dominant-baseline="middle">AK</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-weight="700"
+     text-anchor="middle" dominant-baseline="middle" fill="#d4a853" fill-opacity="0.5">
+    <text x="66" y="96" font-size="76">#</text>
+    <text x="256" y="78" font-size="64">1.</text>
+    <text x="454" y="246" font-size="72">*</text>
+    <text x="58" y="350" font-size="68">-</text>
+    <text x="72" y="430" font-size="66">[]</text>
+    <text x="168" y="452" font-size="60">`</text>
+    <text x="272" y="452" font-size="72">###</text>
+  </g>
 
-  <line x1="148" y1="396" x2="364" y2="396"
-        stroke="#e0865f" stroke-width="40" stroke-linecap="round"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-weight="700"
+     text-anchor="middle" dominant-baseline="middle" fill="#4aafa5" fill-opacity="0.5">
+    <text x="168" y="80" font-size="60">**</text>
+    <text x="446" y="96" font-size="76">##</text>
+    <text x="62" y="258" font-size="70">&gt;</text>
+    <text x="452" y="350" font-size="68">_</text>
+    <text x="442" y="436" font-size="66">~~</text>
+  </g>
+
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#3d3d36" stroke-width="6"/>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-weight="800" text-anchor="middle" dominant-baseline="middle">
+    <text x="174" y="260" font-size="300" fill="url(#gold)">M</text>
+    <text x="338" y="260" font-size="300" fill="url(#teal)">D</text>
+  </g>
 </svg>

@@ -77,12 +77,15 @@ body {
   font-family: var(--mono);
   font-weight: 700;
   font-size: 13px;
-  background: var(--ink);
+  background: #23231f;
   color: var(--bg-elev);
   padding: 4px 7px;
   border-radius: 6px;
   letter-spacing: 0.5px;
+  border: 1px solid #3d3d36;
 }
+.brand-mark .bm-gold { color: #ecc279; }
+.brand-mark .bm-teal { color: #8fe0d6; }
 .brand-name {
   font-family: var(--serif);
   font-weight: 600;
