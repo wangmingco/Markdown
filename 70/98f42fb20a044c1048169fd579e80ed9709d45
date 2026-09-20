@@ -1,0 +1,25 @@
+app.go
+  s_b18ab797790919::t_3d4657b6eb066c 118-134
+frontend/src/main.js
+  s_b18ab797790919::t_15de961cd444e6 99
+  s_b18ab797790919::t_ce9577bf6d7b09 44-45
+  s_b18ab797790919::t_d443aca907d1c6 176
+  s_b18ab797790919::t_f9f7aba4612d7c 1087,1091-1095
+  s_b18ab797790919::t_0cdae3dbad348c 203-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.3",
+  "base_commit_sha": "7098f42fb20a044c1048169fd579e80ed9709d45",
+  "prompts": {},
+  "sessions": {
+    "s_b18ab797790919": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f43247f03ffei1WKwas3wQJB4M",
+        "model": "unknown"
+      },
+      "human_author": "wangming <wangming.co@hotmail.com>"
+    }
+  }
+}
