@@ -72,6 +72,11 @@
         <span>工作区</span>
         <button id="addFolderBtn" class="tool" title="添加文件夹">＋</button>
       </div>
+      <div class="ws-search">
+        <input id="wsSearch" type="text" spellcheck="false" placeholder="搜索文件或内容…" />
+        <button id="wsSearchCase" class="ws-search-btn" title="区分大小写">Aa</button>
+        <button id="wsSearchClear" class="ws-search-btn" title="清空" hidden>✕</button>
+      </div>
       <div class="ws-body" id="wsBody"></div>
     </aside>
 
@@ -87,9 +92,31 @@
       <section class="pane pane-edit">
         <div class="pane-label">
           <span>MARKDOWN</span>
-          <span class="counter" id="wordCount">0 字</span>
+          <span class="pane-label-right">
+            <button class="pane-btn" id="findBtn" title="查找 (Ctrl+F)">⌕</button>
+            <span class="counter" id="wordCount">0 字</span>
+          </span>
         </div>
-        <textarea id="editor" spellcheck="false" placeholder="在这里开始书写……"></textarea>
+        <div class="editor-wrap" id="editorWrap">
+          <div class="editor-mirror" id="editorMirror" aria-hidden="true"></div>
+          <textarea id="editor" spellcheck="false" placeholder="在这里开始书写……"></textarea>
+        </div>
+        <div class="findbar" id="findBar" hidden>
+          <div class="find-row">
+            <input id="findInput" class="find-input" type="text" spellcheck="false" placeholder="查找…" />
+            <span class="find-count" id="findCount">0/0</span>
+            <button class="find-btn" id="findPrev" title="上一个 (Shift+Enter)">↑</button>
+            <button class="find-btn" id="findNext" title="下一个 (Enter)">↓</button>
+            <button class="find-btn" id="findCase" title="区分大小写">Aa</button>
+            <button class="find-btn" id="findToggleReplace" title="显示替换 (Ctrl+H)">⇄</button>
+            <button class="find-btn" id="findClose" title="关闭 (Esc)">✕</button>
+          </div>
+          <div class="find-row find-replace-row" id="findReplaceRow" hidden>
+            <input id="replaceInput" class="find-input" type="text" spellcheck="false" placeholder="替换为…" />
+            <button class="find-btn wide" id="replaceOne" title="替换当前 (Ctrl+Enter)">替换</button>
+            <button class="find-btn wide" id="replaceAll" title="全部替换">全部替换</button>
+          </div>
+        </div>
       </section>
 
       <div class="resizer" id="resizer"></div>

@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -271,4 +274,161 @@ func buildFileTree(path string, info os.FileInfo) (*FileEntry, error) {
 		return strings.ToLower(ci.Name) < strings.ToLower(cj.Name)
 	})
 	return node, nil
+}
+
+// SearchHit is one matching line inside a file.
+// Line is 1-based, Col is the 1-based rune offset of the match inside the
+// *full* line, and Text is a short window of that line for display.
+type SearchHit struct {
+	Line int    `json:"line"`
+	Col  int    `json:"col"`
+	Text string `json:"text"`
+}
+
+// SearchFile groups the hits found inside a single file.
+type SearchFile struct {
+	Path      string      `json:"path"`
+	Name      string      `json:"name"`
+	Rel       string      `json:"rel"`
+	Hits      []SearchHit `json:"hits"`
+	Total     int         `json:"total"`
+	Truncated bool        `json:"truncated"`
+}
+
+const (
+	searchMaxFiles       = 200
+	searchMaxHitsPerFile = 50
+	searchMaxMatchScan   = 2000
+	searchMaxFileSize    = 4 << 20
+	searchSnippetRunes   = 180
+)
+
+// SearchWorkspace scans the markdown files under roots and returns the files
+// whose contents contain query. Search is plain text (regex meta characters are
+// escaped) and, unless caseSensitive is true, ignores letter case.
+func (a *App) SearchWorkspace(roots []string, query string, caseSensitive bool, limit int) []SearchFile {
+	query = strings.TrimSpace(query)
+	results := make([]SearchFile, 0)
+	if query == "" || len(roots) == 0 {
+		return results
+	}
+	if limit <= 0 || limit > searchMaxFiles {
+		limit = searchMaxFiles
+	}
+	pattern := regexp.QuoteMeta(query)
+	if !caseSensitive {
+		pattern = "(?i)" + pattern
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return results
+	}
+
+	seen := map[string]bool{}
+	for _, root := range roots {
+		root = filepath.Clean(root)
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				if path != root && (workspaceSkipDirs[d.Name()] || strings.HasPrefix(d.Name(), ".")) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if len(results) >= limit {
+				return fs.SkipAll
+			}
+			if strings.HasPrefix(d.Name(), ".") || seen[path] {
+				return nil
+			}
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext != ".md" && ext != ".markdown" {
+				return nil
+			}
+			info, ierr := d.Info()
+			if ierr != nil || info.Size() > searchMaxFileSize {
+				return nil
+			}
+			seen[path] = true
+			data, rerr := os.ReadFile(path)
+			if rerr != nil {
+				return nil
+			}
+			content := string(data)
+			locs := re.FindAllStringIndex(content, searchMaxMatchScan)
+			if len(locs) == 0 {
+				return nil
+			}
+
+			lineStarts := []int{0}
+			for i := 0; i < len(content); i++ {
+				if content[i] == '\n' {
+					lineStarts = append(lineStarts, i+1)
+				}
+			}
+
+			file := SearchFile{Path: path, Name: d.Name(), Total: len(locs)}
+			rel, rerr := filepath.Rel(root, path)
+			if rerr != nil {
+				rel = d.Name()
+			}
+			file.Rel = rel
+
+			for _, loc := range locs {
+				if len(file.Hits) >= searchMaxHitsPerFile {
+					file.Truncated = true
+					break
+				}
+				line := sort.Search(len(lineStarts), func(i int) bool { return lineStarts[i] > loc[0] }) - 1
+				if line < 0 {
+					line = 0
+				}
+				lineStart := lineStarts[line]
+				lineEnd := len(content)
+				if line+1 < len(lineStarts) {
+					lineEnd = lineStarts[line+1] - 1
+				}
+				rawLine := strings.TrimSuffix(content[lineStart:lineEnd], "\r")
+				runes := []rune(rawLine)
+				matchRune := utf8.RuneCountInString(content[lineStart:loc[0]])
+
+				startRune, endRune := 0, len(runes)
+				if endRune > searchSnippetRunes {
+					startRune = matchRune - 60
+					if startRune < 0 {
+						startRune = 0
+					}
+					endRune = startRune + searchSnippetRunes
+					if endRune > len(runes) {
+						endRune = len(runes)
+						startRune = endRune - searchSnippetRunes
+						if startRune < 0 {
+							startRune = 0
+						}
+					}
+				}
+				text := strings.TrimSpace(string(runes[startRune:endRune]))
+				if startRune > 0 {
+					text = "…" + text
+				}
+				if endRune < len(runes) {
+					text += "…"
+				}
+
+				file.Hits = append(file.Hits, SearchHit{
+					Line: line + 1,
+					Col:  matchRune + 1,
+					Text: text,
+				})
+			}
+			results = append(results, file)
+			return nil
+		})
+		if len(results) >= limit {
+			break
+		}
+	}
+	return results
 }

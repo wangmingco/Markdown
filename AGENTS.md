@@ -26,6 +26,9 @@ Order matters: desktop build needs `frontend/dist` built before `wails build`.
 ## Architecture notes
 
 - `app.go`: all Go↔JS bindings (`OpenFileDialog`, `SaveFileDialog`, `OpenFile`, `SaveFile`, `GetInitialFile`). `GetInitialFile` returns the file passed via `os.Args[1]` when the app is opened by double-clicking a `.md`.
+- `SearchWorkspace(roots, query, caseSensitive, limit)` in `app.go` does workspace full-text search: markdown files only, skips `workspaceSkipDirs`/dot-dirs, returns per-file hits with a 1-based line and a 1-based **rune** column (the frontend converts to a JS index).
+- `main.js` in-document find/replace (`Ctrl+F` / `Ctrl+H`): hits are painted by `#editorMirror`, a div layered *behind* the transparent `#editor` textarea. The mirror must keep the same font/padding/line-height **and** be sized from `editor.clientWidth/clientHeight` (scrollbar width) or highlights drift.
+- Workspace search box lives in the `ws-panel` (`Ctrl+Shift+F`): filename matches are computed locally from the tree, content matches come from `SearchWorkspace` (debounced, desktop only). Clicking a content hit opens the file and jumps to the line.
 - `main.js`: `initFromFileArg()` runs at startup — if a file arg exists it loads it, forces `body.mode-preview`, opens the TOC panel, and toasts the filename.
 - **MathJax quirk**: `marked` uses `breaks:true`, which destroys multi-line `$$...$$` math. A custom marked block extension (`blockMathExtension`) preserves block math as a single token; inline `$...$` math is kept by `skipHtmlTags: ['code']`. Don't remove `breaks:true` or this extension independently.
 - `main.go`: embeds `frontend/dist` via `//go:embed all:frontend/dist`.

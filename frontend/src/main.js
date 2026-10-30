@@ -17,6 +17,7 @@ async function loadMathJax() {
 const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
 const wordCount = document.getElementById('wordCount');
+const editorMirror = document.getElementById('editorMirror');
 
 // ---------- Tabs ----------
 let tabs = [];
@@ -91,8 +92,7 @@ function openFileInTab(path, content) {
     tab.dirty = false;
     tab.history = [{ value: content, start: 0, end: 0 }];
     tab.historyIndex = 0;
-    render();
-    renderTabBar();
+    loadEditorFromTab(tab);
   } else {
     addTab(makeTab(name, content, path));
   }
@@ -350,6 +350,7 @@ function render() {
   updateCount();
   renderTOC();
   observeHeadings();
+  updateFindHighlights();
 }
 
 function updateCount() {
@@ -607,12 +608,14 @@ window.addEventListener('mouseup', () => {
 
 // ---------- View modes ----------
 const pvButtons = document.querySelectorAll('.pv');
+
+function setMode(mode) {
+  document.body.className = `mode-${mode}`;
+  pvButtons.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+}
+
 pvButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    pvButtons.forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.body.className = `mode-${btn.dataset.mode}`;
-  });
+  btn.addEventListener('click', () => setMode(btn.dataset.mode));
 });
 
 // ---------- TOC toggle ----------
@@ -757,8 +760,9 @@ document.getElementById('modalMask').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     const mask = document.getElementById('modalMask');
-    if (!mask.hidden) closeModal();
+    if (!mask.hidden) { closeModal(); return; }
     hideCtxMenu();
+    if (!findBar.hidden) closeFind();
   }
 });
 
@@ -776,6 +780,277 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
 }
+
+// ---------- Find / Replace ----------
+const findBar = document.getElementById('findBar');
+const findInput = document.getElementById('findInput');
+const replaceInput = document.getElementById('replaceInput');
+const replaceRow = document.getElementById('findReplaceRow');
+const findCount = document.getElementById('findCount');
+const findCaseBtn = document.getElementById('findCase');
+const findToggleReplace = document.getElementById('findToggleReplace');
+
+const findState = { query: '', caseSensitive: false, matches: [], index: -1, value: '' };
+const FIND_LIMIT = 5000;
+
+function findMatches() {
+  const query = findState.query;
+  const out = [];
+  if (!query) return out;
+  const haystack = findState.caseSensitive ? editor.value : editor.value.toLowerCase();
+  const needle = findState.caseSensitive ? query : query.toLowerCase();
+  if (!needle) return out;
+  let from = 0;
+  while (out.length < FIND_LIMIT) {
+    const at = haystack.indexOf(needle, from);
+    if (at === -1) break;
+    out.push({ start: at, end: at + query.length });
+    from = at + needle.length;
+  }
+  return out;
+}
+
+function refreshFind() {
+  findState.matches = findMatches();
+  findState.value = editor.value;
+  if (!findState.matches.length) findState.index = -1;
+  else if (findState.index < 0) findState.index = 0;
+  else if (findState.index >= findState.matches.length) findState.index = findState.matches.length - 1;
+  updateFindHighlights();
+  updateFindCount();
+}
+
+function syncMirrorScroll() {
+  syncMirrorSize();
+  editorMirror.scrollTop = editor.scrollTop;
+  editorMirror.scrollLeft = editor.scrollLeft;
+}
+
+// Keep the mirror layer exactly as wide as the textarea's padding box. The
+// textarea loses width to its scrollbar, so mirroring `inset: 0` alone would
+// wrap long lines at a different point and misalign every highlight.
+function syncMirrorSize() {
+  const w = `${editor.clientWidth}px`;
+  const h = `${editor.clientHeight}px`;
+  if (editorMirror.style.width !== w) editorMirror.style.width = w;
+  if (editorMirror.style.height !== h) editorMirror.style.height = h;
+}
+
+function updateFindHighlights() {
+  if (findBar.hidden || !findState.query) {
+    findState.value = editor.value;
+    if (editorMirror.childNodes.length) editorMirror.replaceChildren();
+    return;
+  }
+  // The document can change while the bar is open (typing, undo, replace),
+  // so make sure the painted hits match the current text.
+  if (findState.value !== editor.value) {
+    findState.matches = findMatches();
+    findState.value = editor.value;
+    if (!findState.matches.length) findState.index = -1;
+    else if (findState.index >= findState.matches.length) findState.index = findState.matches.length - 1;
+    updateFindCount();
+  }
+  syncMirrorSize();
+  const value = editor.value;
+  const frag = document.createDocumentFragment();
+  let last = 0;
+  findState.matches.forEach((m, i) => {
+    if (m.start > last) frag.appendChild(document.createTextNode(value.slice(last, m.start)));
+    const mark = document.createElement('mark');
+    if (i === findState.index) mark.className = 'current';
+    mark.textContent = value.slice(m.start, m.end);
+    frag.appendChild(mark);
+    last = m.end;
+  });
+  frag.appendChild(document.createTextNode(value.slice(last) + '\n'));
+  editorMirror.replaceChildren(frag);
+  syncMirrorScroll();
+}
+
+function updateFindCount() {
+  const total = findState.matches.length;
+  findCount.textContent = total ? `${findState.index + 1}/${total}` : '0/0';
+  findCount.style.color = findState.query && !total ? 'var(--danger)' : '';
+}
+
+function scrollEditorToOffset(start, end) {
+  syncMirrorSize();
+  const value = editor.value;
+  const frag = document.createDocumentFragment();
+  frag.appendChild(document.createTextNode(value.slice(0, start)));
+  const mark = document.createElement('mark');
+  mark.className = 'current';
+  mark.textContent = value.slice(start, end) || ' ';
+  frag.appendChild(mark);
+  frag.appendChild(document.createTextNode(value.slice(end) + '\n'));
+  editorMirror.replaceChildren(frag);
+  editor.scrollTop = Math.max(0, mark.offsetTop - editor.clientHeight * 0.35);
+  updateFindHighlights();
+}
+
+function gotoMatch(index) {
+  const total = findState.matches.length;
+  if (!total) return;
+  const i = ((index % total) + total) % total;
+  findState.index = i;
+  const m = findState.matches[i];
+  editor.setSelectionRange(m.start, m.end);
+  updateFindHighlights();
+  const mark = editorMirror.querySelector('mark.current');
+  if (mark) {
+    editor.scrollTop = Math.max(0, mark.offsetTop - editor.clientHeight * 0.4);
+    syncMirrorScroll();
+  }
+  updateFindCount();
+}
+
+function stepFind(dir) {
+  if (!findState.matches.length) refreshFind();
+  if (!findState.matches.length) return;
+  gotoMatch(findState.index < 0 ? 0 : findState.index + dir);
+}
+
+function setReplaceMode(on) {
+  replaceRow.hidden = !on;
+  findToggleReplace.classList.toggle('active', on);
+  if (on) {
+    replaceInput.focus();
+    replaceInput.select();
+  }
+}
+
+function openFind(withReplace = false) {
+  if (document.body.className.includes('mode-preview')) setMode('split');
+  findBar.hidden = false;
+  const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+  if (sel && !sel.includes('\n') && sel.length < 80) findInput.value = sel;
+  findInput.focus();
+  findInput.select();
+  findState.query = findInput.value;
+  findState.index = -1;
+  refreshFind();
+  const from = editor.selectionStart;
+  const at = findState.matches.findIndex(m => m.start >= from);
+  if (findState.matches.length) gotoMatch(at === -1 ? 0 : at);
+  setReplaceMode(withReplace);
+}
+
+function closeFind() {
+  findBar.hidden = true;
+  findState.query = '';
+  findState.matches = [];
+  findState.index = -1;
+  editorMirror.replaceChildren();
+  editor.focus();
+}
+
+function replaceCurrent() {
+  if (!findState.matches.length) return;
+  const i = findState.index < 0 ? 0 : findState.index;
+  const m = findState.matches[i];
+  const text = replaceInput.value;
+  const value = editor.value;
+  editor.value = value.slice(0, m.start) + text + value.slice(m.end);
+  const caret = m.start + text.length;
+  editor.setSelectionRange(caret, caret);
+  pushSnapshot(true);
+  render();
+  refreshFind();
+  const next = findState.matches.findIndex(x => x.start >= caret);
+  if (findState.matches.length) gotoMatch(next === -1 ? 0 : next);
+  else updateFindCount();
+}
+
+function replaceAllMatches() {
+  const matches = findState.matches.slice();
+  if (!matches.length) return;
+  const text = replaceInput.value;
+  const value = editor.value;
+  let out = '';
+  let last = 0;
+  matches.forEach(m => {
+    out += value.slice(last, m.start) + text;
+    last = m.end;
+  });
+  out += value.slice(last);
+  const caret = Math.min(matches[0].start + text.length, out.length);
+  editor.value = out;
+  editor.setSelectionRange(caret, caret);
+  pushSnapshot(true);
+  render();
+  refreshFind();
+  toast(`已替换 ${matches.length} 处`);
+}
+
+document.getElementById('findBtn').addEventListener('click', () => openFind(false));
+document.getElementById('findClose').addEventListener('click', closeFind);
+document.getElementById('findPrev').addEventListener('click', () => { stepFind(-1); findInput.focus(); });
+document.getElementById('findNext').addEventListener('click', () => { stepFind(1); findInput.focus(); });
+document.getElementById('replaceOne').addEventListener('click', () => { replaceCurrent(); replaceInput.focus(); replaceInput.select(); });
+document.getElementById('replaceAll').addEventListener('click', () => { replaceAllMatches(); replaceInput.focus(); replaceInput.select(); });
+findToggleReplace.addEventListener('click', () => {
+  const on = replaceRow.hidden;
+  setReplaceMode(on);
+  if (!on) findInput.focus();
+});
+findCaseBtn.addEventListener('click', () => {
+  findState.caseSensitive = !findState.caseSensitive;
+  findCaseBtn.classList.toggle('active', findState.caseSensitive);
+  refreshFind();
+});
+editor.addEventListener('scroll', syncMirrorScroll);
+window.addEventListener('resize', () => {
+  if (!findBar.hidden) updateFindHighlights();
+});
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => {
+    if (!findBar.hidden) updateFindHighlights();
+  }).observe(editor);
+}
+
+findInput.addEventListener('input', () => {
+  findState.query = findInput.value;
+  findState.index = -1;
+  refreshFind();
+  const from = editor.selectionStart;
+  const at = findState.matches.findIndex(m => m.start >= from);
+  if (findState.matches.length) gotoMatch(at === -1 ? 0 : at);
+});
+findInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); stepFind(e.shiftKey ? -1 : 1); }
+  else if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
+});
+replaceInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) replaceAllMatches();
+    else replaceCurrent();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeFind();
+  }
+});
+
+// Global shortcuts: Ctrl+F find, Ctrl+H replace, Ctrl+Shift+F workspace search
+document.addEventListener('keydown', (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (!mod) return;
+  const key = e.key.toLowerCase();
+  const modal = document.getElementById('modalMask');
+  const exportMask = document.getElementById('exportMask');
+  if (!modal.hidden || !exportMask.hidden) return;
+  if (key === 'f' && !e.shiftKey) {
+    e.preventDefault();
+    openFind(false);
+  } else if (key === 'f' && e.shiftKey) {
+    e.preventDefault();
+    openWorkspaceSearch();
+  } else if (key === 'h') {
+    e.preventDefault();
+    openFind(true);
+  }
+});
 
 // ---------- Init ----------
 addTab(makeTab('未命名' + (++untitledCounter), DEFAULT));
@@ -812,8 +1087,57 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 // ---------- Workspace file tree (Wails only) ----------
 const wsPanel = document.getElementById('wsPanel');
 const wsBody = document.getElementById('wsBody');
+const wsSearch = document.getElementById('wsSearch');
+const wsSearchCase = document.getElementById('wsSearchCase');
+const wsSearchClear = document.getElementById('wsSearchClear');
 const wsRoots = [];      // array of { root, expanded:Set }
 const expandedDirs = new Set(); // set of folder paths that are expanded
+
+let wsQuery = '';
+let wsCaseSensitive = false;
+let wsSearchToken = 0;
+let wsSearchTimer = null;
+
+function openWorkspaceSearch() {
+  if (!isWails()) { toast('搜索功能仅在桌面端可用'); return; }
+  wsPanel.classList.add('open');
+  wsSearch.focus();
+  wsSearch.select();
+}
+
+wsSearch.addEventListener('input', () => {
+  wsQuery = wsSearch.value.trim();
+  wsSearchClear.hidden = !wsSearch.value;
+  renderWorkspace();
+});
+
+wsSearch.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    wsSearch.value = '';
+    wsQuery = '';
+    wsSearchClear.hidden = true;
+    renderWorkspace();
+    wsSearch.blur();
+  }
+});
+
+wsSearchClear.addEventListener('click', () => {
+  wsSearch.value = '';
+  wsQuery = '';
+  wsSearchClear.hidden = true;
+  renderWorkspace();
+  wsSearch.focus();
+});
+
+wsSearchCase.addEventListener('click', () => {
+  wsCaseSensitive = !wsCaseSensitive;
+  wsSearchCase.classList.toggle('active', wsCaseSensitive);
+  wsSearch.placeholder = wsCaseSensitive ? '区分大小写搜索…' : '搜索文件或内容…';
+  renderWorkspace();
+  wsSearch.focus();
+});
 
 document.getElementById('wsBtn').addEventListener('click', () => {
   wsPanel.classList.toggle('open');
@@ -832,10 +1156,185 @@ document.getElementById('addFolderBtn').addEventListener('click', async () => {
 function renderWorkspace() {
   wsBody.innerHTML = '';
   if (!wsRoots.length) {
+    wsSearchToken++;
     wsBody.innerHTML = '<div class="empty">工作区为空<br>点击右上角 ＋ 添加文件夹</div>';
     return;
   }
+  if (wsQuery) {
+    renderSearchResults();
+    return;
+  }
+  wsSearchToken++;
   wsRoots.forEach(tree => wsBody.appendChild(renderTreeItem(tree, 0)));
+}
+
+// ---------- Workspace search (filename + full text) ----------
+function flattenFiles(nodes, out = [], seen = new Set()) {
+  nodes.forEach(node => {
+    if (node.isDir) {
+      if (node.children) flattenFiles(node.children, out, seen);
+    } else if (!seen.has(node.path)) {
+      seen.add(node.path);
+      out.push(node);
+    }
+  });
+  return out;
+}
+
+// Path relative to the workspace root that contains it, for display.
+function relPath(path) {
+  for (const root of wsRoots) {
+    if (path.startsWith(root.path + '\\') || path.startsWith(root.path + '/')) {
+      return path.slice(root.path.length + 1);
+    }
+  }
+  return path;
+}
+
+function includesQuery(text, query) {
+  return wsCaseSensitive
+    ? text.includes(query)
+    : text.toLowerCase().includes(query.toLowerCase());
+}
+
+function highlightSnippet(text, query) {
+  const frag = document.createDocumentFragment();
+  if (!query) {
+    frag.appendChild(document.createTextNode(text));
+    return frag;
+  }
+  const haystack = wsCaseSensitive ? text : text.toLowerCase();
+  const needle = wsCaseSensitive ? query : query.toLowerCase();
+  let from = 0;
+  while (needle) {
+    const at = haystack.indexOf(needle, from);
+    if (at === -1) break;
+    if (at > from) frag.appendChild(document.createTextNode(text.slice(from, at)));
+    const mark = document.createElement('mark');
+    mark.textContent = text.slice(at, at + needle.length);
+    frag.appendChild(mark);
+    from = at + needle.length;
+  }
+  if (from < text.length) frag.appendChild(document.createTextNode(text.slice(from)));
+  return frag;
+}
+
+function renderSearchResults() {
+  const query = wsQuery;
+  const token = ++wsSearchToken;
+  const files = flattenFiles(wsRoots);
+  const nameMatches = files.filter(f => includesQuery(f.name, query));
+
+  const nameSection = document.createElement('div');
+  nameSection.className = 'sr-section';
+  nameSection.textContent = `文件名 · ${nameMatches.length}`;
+  wsBody.appendChild(nameSection);
+
+  if (!nameMatches.length) {
+    const empty = document.createElement('div');
+    empty.className = 'sr-empty';
+    empty.textContent = '没有匹配的文件名';
+    wsBody.appendChild(empty);
+  } else {
+    nameMatches.slice(0, 60).forEach(file => {
+      const row = document.createElement('div');
+      row.className = 'sr-file';
+      row.title = file.path;
+      const name = document.createElement('span');
+      name.className = 'sr-name';
+      name.appendChild(highlightSnippet(file.name, query));
+      const rel = relPath(file.path);
+      const dirName = rel !== file.name ? rel.replace(/[\\/][^\\/]*$/, '') : '';
+      const dir = document.createElement('span');
+      dir.className = 'sr-dir';
+      dir.textContent = dirName;
+      row.appendChild(name);
+      if (dirName) row.appendChild(dir);
+      row.addEventListener('click', () => openPath(file.path));
+      wsBody.appendChild(row);
+    });
+  }
+
+  const contentSection = document.createElement('div');
+  contentSection.className = 'sr-section';
+  contentSection.textContent = '内容';
+  wsBody.appendChild(contentSection);
+
+  const contentBox = document.createElement('div');
+  contentBox.className = 'sr-content';
+  wsBody.appendChild(contentBox);
+
+  if (!isWails()) {
+    contentBox.innerHTML = '<div class="sr-hint">全文搜索仅在桌面端可用</div>';
+    return;
+  }
+
+  contentBox.innerHTML = '<div class="sr-hint">搜索中…</div>';
+  clearTimeout(wsSearchTimer);
+  wsSearchTimer = setTimeout(async () => {
+    let results = [];
+    try {
+      results = await window.go.main.App.SearchWorkspace(
+        wsRoots.map(r => r.path), query, wsCaseSensitive, 200,
+      ) || [];
+    } catch {
+      results = [];
+    }
+    if (token !== wsSearchToken) return;
+    renderContentResults(contentBox, results, query);
+  }, 220);
+}
+
+function renderContentResults(box, results, query) {
+  box.innerHTML = '';
+  if (!results.length) {
+    box.innerHTML = '<div class="sr-empty">没有匹配的内容</div>';
+    return;
+  }
+  const totalHits = results.reduce((n, f) => n + f.total, 0);
+  const summary = document.createElement('div');
+  summary.className = 'sr-hint';
+  summary.style.padding = '2px 14px 6px';
+  summary.textContent = `${results.length} 个文件 · ${totalHits} 处匹配`;
+  box.appendChild(summary);
+
+  results.forEach(file => {
+    const group = document.createElement('div');
+    group.className = 'sr-group';
+
+    const head = document.createElement('div');
+    head.className = 'sr-head';
+    head.title = file.path;
+    head.dataset.path = file.path;
+    const name = document.createElement('span');
+    name.className = 'sr-name';
+    name.textContent = file.name;
+    const badge = document.createElement('span');
+    badge.className = 'sr-badge';
+    badge.textContent = file.truncated ? `${file.hits.length}+` : String(file.total);
+    head.appendChild(name);
+    head.appendChild(badge);
+    head.addEventListener('click', () => openPath(file.path));
+    group.appendChild(head);
+
+    file.hits.forEach(hit => {
+      const row = document.createElement('div');
+      row.className = 'sr-hit';
+      row.title = `${file.rel}:${hit.line}`;
+      const line = document.createElement('span');
+      line.className = 'sr-line';
+      line.textContent = hit.line;
+      const text = document.createElement('span');
+      text.className = 'sr-text';
+      text.appendChild(highlightSnippet(hit.text, query));
+      row.appendChild(line);
+      row.appendChild(text);
+      row.addEventListener('click', () => openPath(file.path, hit));
+      group.appendChild(row);
+    });
+
+    box.appendChild(group);
+  });
 }
 
 function renderTreeItem(node, depth) {
@@ -954,15 +1453,81 @@ function openWorkspaceNode(node) {
   if (!isWails()) return;
   const ext = node.path.split('.').pop().toLowerCase();
   if (ext !== 'md' && ext !== 'markdown') { toast('仅支持打开 Markdown 文件'); return; }
-  return window.go.main.App.OpenFile(node.path)
-    .then((content) => {
-      openFileInTab(node.path, content);
-      wsBody.querySelectorAll('.tree-row.active').forEach(r => r.classList.remove('active'));
-      const row = wsBody.querySelector(`.tree-row[data-path="${CSS.escape(node.path)}"]`);
-      if (row) row.classList.add('active');
-      toast('已打开：' + node.name);
-    })
-    .catch(() => toast('打开失败'));
+  return openPath(node.path);
+}
+
+function markActiveFile(path) {
+  wsBody.querySelectorAll('.active').forEach(r => r.classList.remove('active'));
+  const row = wsBody.querySelector(`.tree-row[data-path="${CSS.escape(path)}"]`);
+  if (row) row.classList.add('active');
+  const head = wsBody.querySelector(`.sr-head[data-path="${CSS.escape(path)}"]`);
+  if (head) head.classList.add('active');
+}
+
+// Opens a markdown file in a tab. If the file is already open, that tab is
+// focused instead. When `hit` is provided (from full-text search) the editor
+// caret is moved to the matching line and the match is scrolled into view.
+async function openPath(path, hit = null) {
+  if (!isWails()) return;
+  const existing = tabs.find(t => t.path === path);
+  if (existing) {
+    switchTo(existing.id);
+    markActiveFile(path);
+    if (hit) revealInEditor(hit);
+    return;
+  }
+  try {
+    const content = await window.go.main.App.OpenFile(path);
+    openFileInTab(path, content);
+    markActiveFile(path);
+    if (hit) revealInEditor(hit);
+    toast('已打开：' + path.split(/[\\/]/).pop());
+  } catch {
+    toast('打开失败');
+  }
+}
+
+function runeIdxToJs(str, runeIdx) {
+  let i = 0;
+  let r = 0;
+  while (r < runeIdx && i < str.length) {
+    const cp = str.codePointAt(i);
+    i += cp > 0xffff ? 2 : 1;
+    r++;
+  }
+  return i;
+}
+
+function revealInEditor(hit) {
+  const value = editor.value;
+  let lineStart = 0;
+  for (let i = 1; i < hit.line; i++) {
+    const nl = value.indexOf('\n', lineStart);
+    if (nl === -1) { lineStart = -1; break; }
+    lineStart = nl + 1;
+  }
+  if (lineStart < 0) return;
+  let lineEnd = value.indexOf('\n', lineStart);
+  if (lineEnd === -1) lineEnd = value.length;
+  const lineText = value.slice(lineStart, lineEnd).replace(/\r$/, '');
+
+  const needle = wsCaseSensitive ? wsQuery : wsQuery.toLowerCase();
+  let start = lineStart + runeIdxToJs(lineText, Math.max(0, hit.col - 1));
+  const found = wsCaseSensitive
+    ? value.slice(start, start + needle.length)
+    : value.slice(start, start + needle.length).toLowerCase();
+  if (!needle || found !== needle) {
+    const at = wsCaseSensitive
+      ? lineText.indexOf(wsQuery)
+      : lineText.toLowerCase().indexOf(needle);
+    start = at === -1 ? lineStart : lineStart + at;
+  }
+  const end = start + wsQuery.length;
+
+  if (document.body.className.includes('mode-preview')) setMode('split');
+  editor.focus();
+  editor.setSelectionRange(start, end);
+  scrollEditorToOffset(start, end);
 }
 
 async function refreshWorkspace() {
@@ -1042,6 +1607,7 @@ function deleteNode(node) {
 }
 
 wsBody.addEventListener('contextmenu', (e) => {
+  if (wsQuery) return;
   if (e.target.closest('.tree-item')) return;
   e.preventDefault();
   if (!wsRoots.length) { toast('请先添加工作区文件夹'); return; }
