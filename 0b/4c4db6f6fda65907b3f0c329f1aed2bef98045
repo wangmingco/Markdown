@@ -1,0 +1,63 @@
+frontend/src/style.css
+  s_5f473d39c7a1cd::t_87f23584a5c29b 213-214,216-221,223,232,234,237-256,258-259,261-262,265-290,292-348
+  s_5f473d39c7a1cd::t_14b418c2689fb8 1212
+  s_5f473d39c7a1cd::t_e6e0c0ea506f42 14-15
+  s_5f473d39c7a1cd::t_1ed76664ed37f0 36-37
+  s_5f473d39c7a1cd::t_8dbb441ff1ce60 257,260,263-264
+  s_5f473d39c7a1cd::t_ca86b89c36163d 566-567
+  s_5f473d39c7a1cd::t_48ebe52219b920 291
+  s_5f473d39c7a1cd::t_1e5fcce0803b1a 484-565,568-621
+  s_5f473d39c7a1cd::t_3582e5cb82c87c 175
+frontend/src/main.js
+  s_5f473d39c7a1cd::t_d38bba9c0b04f3 1456-1530
+  s_5f473d39c7a1cd::t_c899242ac5303f 1226
+  s_5f473d39c7a1cd::t_d99914e777395b 20,1141,1338-1339
+  s_5f473d39c7a1cd::t_67be87ad98a444 763,765
+  s_5f473d39c7a1cd::t_4cdbf8d0722289 824,827-836
+  s_5f473d39c7a1cd::t_73f87f759cfbf9 878
+  s_5f473d39c7a1cd::t_071f901c5c6e8e 936
+  s_5f473d39c7a1cd::t_4d1c6db73b52db 988-991
+  s_5f473d39c7a1cd::t_8a6ffe5d637836 841,844-852
+  s_5f473d39c7a1cd::t_8511a1d0ad2ea8 992-996
+  s_5f473d39c7a1cd::t_c16ec35e333b36 1159,1163-1167,1171,1173-1174,1178-1181,1192-1225,1227-1245,1248-1249,1251,1253-1337
+  s_5f473d39c7a1cd::t_f3520dd32b73a8 1246-1247,1250,1252
+  s_5f473d39c7a1cd::t_fb7139f9017b95 1035-1054
+  s_5f473d39c7a1cd::t_1a1328a39d5873 611-616,618
+  s_5f473d39c7a1cd::t_3db2504b74c482 815
+  s_5f473d39c7a1cd::t_784fa3fcbdc9da 854
+  s_5f473d39c7a1cd::t_4a08555d73c75f 784-792,794-814,816-823,825-826,837-840,842-843,853,855-877,879-910,912-935,937-987,997-1005,1011-1034
+  s_5f473d39c7a1cd::t_98581c459c5ce6 1102
+  s_5f473d39c7a1cd::t_4e3a5b90c3ed60 1172,1175-1177,1182-1191
+  s_5f473d39c7a1cd::t_8a9f289792aaf2 911
+  s_5f473d39c7a1cd::t_f338aa502532cb 353
+  s_5f473d39c7a1cd::t_7dd03fd55806ab 793
+  s_5f473d39c7a1cd::t_cb9b0eadb23b07 1610
+  s_5f473d39c7a1cd::t_78c96db8edf124 95
+  s_5f473d39c7a1cd::t_afc9bf65beee36 1006-1010
+  s_5f473d39c7a1cd::t_9c67ed4fe2402e 1090-1092,1096-1101,1103-1140
+frontend/index.html
+  s_5f473d39c7a1cd::t_6ae63360f2f641 75-79,99
+  s_5f473d39c7a1cd::t_88319b181fbc58 95-98,100-118
+app.go
+  s_5f473d39c7a1cd::t_1f3c35de9eed29 6,9,12,277-300,302-359,361-434
+  s_5f473d39c7a1cd::t_20138aa3f81e94 301
+  s_5f473d39c7a1cd::t_2711095f572d9a 360
+AGENTS.md
+  s_5f473d39c7a1cd::t_58be9f108a77da 29-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.5.3",
+  "base_commit_sha": "0b4c4db6f6fda65907b3f0c329f1aed2bef98045",
+  "prompts": {},
+  "sessions": {
+    "s_5f473d39c7a1cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e73aea364ffeADDo3wsUr0zWL5",
+        "model": "unknown"
+      },
+      "human_author": "wangming <wangming.co@hotmail.com>"
+    }
+  }
+}
